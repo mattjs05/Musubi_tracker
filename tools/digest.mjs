@@ -52,5 +52,5 @@ ${link}
 Salam,
 Musubi 🍙
 
-(Email ini dikirim otomatis saat ${nm} mencatat sesuatu, paling banyak 3× sehari.)`;
+(Email ini dikirim otomatis setiap malam sekitar pukul 21.00 WIB.)`;
 console.log(JSON.stringify({subject, body}));
