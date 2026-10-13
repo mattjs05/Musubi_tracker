@@ -89,6 +89,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .entries{list-style:none;margin:0;padding:0}
 .entries li{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
 .entries li:last-child{border-bottom:0}
+.entries li.food{display:block;padding:0}
+.fbtn{width:100%;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:7px 0;border:0;background:none;text-align:left;color:inherit;font:inherit}
+.fdesc{margin:0 0 8px;padding:8px 10px;border-radius:10px;background:var(--sunk);font-size:15px;line-height:1.4}
 .entries .en{display:flex;flex-direction:column;min-width:0;font-weight:600}
 .entries .ek{font:500 14px var(--mono);font-variant-numeric:tabular-nums}
 .ntag{font:500 10px var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:6px;background:color-mix(in srgb,var(--carbs) 16%,var(--surface));color:var(--carbs)}
@@ -134,7 +137,7 @@ const tgl = k => { const d = fromKey(k); return `${HARI[d.getDay()]}, ${d.getDat
 const pendek = k => `${HARI[fromKey(k).getDay()].slice(0, 3)} ${fromKey(k).getDate()}`;
 function lalu(at) { if (!at) return '–'; const s = (Date.now() - at) / 1000; if (s < 60) return 'baru saja'; if (s < 3600) return Math.floor(s / 60) + ' menit lalu'; if (s < 86400) return Math.floor(s / 3600) + ' jam lalu'; const d = new Date(at); return `${d.getDate()} ${BULAN[d.getMonth()].slice(0, 3)}`; }
 
-const S = {data: null, sel: null, err: ''};
+const S = {data: null, sel: null, err: '', open: null};
 const standalone = () => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } };
 const CHAR = {name: 'Musubi', color: '#E0463C', pixel: true, art: null};
 
@@ -280,8 +283,8 @@ function render() {
     const meals = d.meals || [], groups = SLOTS.map(([id, l]) => [l, meals.filter(m => m.m === id)]).filter(g => g[1].length);
     if (groups.length) food = `<section class="card"><div class="card-h"><h2>Makanan</h2><span class="side">${meals.length} catatan</span></div>
       ${groups.map(([l, ms]) => `<div><h3 class="slot">${l}<span>${fmt(ms.reduce((a, m) => a + m.kcal, 0))} kkal</span></h3>
-        <ul class="entries">${ms.map(m => `<li><span class="en">${esc(m.n)}<small>${esc(m.s || '')}${m.q ? ' · ×' + esc(m.q) : ''}${m.t ? ' · ' + esc(String(m.t).replace(':', '.')) : ''}${m.nt ? ' <span class="ntag">Malam</span>' : ''}</small></span><span class="ek">${fmt(m.kcal)}</span></li>`).join('')}</ul></div>`).join('')}
-      <p class="note">Jam sesuai waktu di tempat ${nm}.</p></section>`;
+        <ul class="entries">${ms.map((m, mi) => { const fid = sel + '|' + l + '|' + mi, ds = (S.data.desc || {})[m.n], open = S.open === fid; return `<li class="food"><button class="fbtn" data-food="${esc(fid)}" aria-expanded="${open}"><span class="en">${esc(m.n)}<small>${esc(m.s || '')}${m.q ? ' · ×' + esc(m.q) : ''}${m.t ? ' · ' + esc(String(m.t).replace(':', '.')) : ''}${m.nt ? ' <span class="ntag">Malam</span>' : ''}</small></span><span class="ek">${fmt(m.kcal)}</span></button>${open ? `<p class="fdesc">${esc(ds || 'Belum ada penjelasan untuk makanan ini. Nanti muncul sendiri.')}</p>` : ''}</li>`; }).join('')}</ul></div>`).join('')}
+      <p class="note">Ketuk makanan untuk penjelasan singkat. Jam sesuai waktu di tempat ${nm}.</p></section>`;
   } else {
     board = `<section class="card"><div class="empty">${isToday ? 'Belum ada makanan yang dicatat hari ini.' : 'Tidak ada catatan untuk hari ini.'}</div></section>`;
   }
@@ -340,13 +343,16 @@ async function load() {
     if (!data || !data.sum) throw new Error('shape');
     lastCt = box.ct; S.err = '';
     if (data.char) Object.assign(CHAR, {name: String(data.char.name || 'Musubi').slice(0, 24), color: /^#[0-9a-f]{6}$/i.test(data.char.color) ? data.char.color : '#E0463C', pixel: data.char.pixel !== false, art: data.char.art || null});
-    S.data = {sum: data.sum, days: data.days || {}, synced: Number(data.synced) || 0};
+    S.data = {sum: data.sum, days: data.days || {}, synced: Number(data.synced) || 0, desc: data.desc && typeof data.desc === 'object' ? data.desc : {}};
     render();
   } catch (e) {
     if (!S.data) { S.err = e && e.name === 'OperationError' ? 'Tautan ini sudah tidak berlaku. Minta tautan baru ke anak Ibu.' : 'Belum bisa memuat data. Coba lagi sebentar.'; render(); }
   }
 }
-document.addEventListener('click', e => { const b = e.target.closest('[data-day]'); if (b) { S.sel = b.dataset.day; render(); } });
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-day]'); if (b) { S.sel = b.dataset.day; S.open = null; render(); return; }
+  const f = e.target.closest('[data-food]'); if (f) { S.open = S.open === f.dataset.food ? null : f.dataset.food; render(); }
+});
 load();
 setInterval(load, 5 * 60 * 1000);
 setInterval(() => { if (S.data) render(); }, 60 * 1000);
