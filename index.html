@@ -6,6 +6,12 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
 <title>Pantau Musubi</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-title" content="Musubi">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#17191C">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
@@ -129,6 +135,7 @@ const pendek = k => `${HARI[fromKey(k).getDay()].slice(0, 3)} ${fromKey(k).getDa
 function lalu(at) { if (!at) return '–'; const s = (Date.now() - at) / 1000; if (s < 60) return 'baru saja'; if (s < 3600) return Math.floor(s / 60) + ' menit lalu'; if (s < 86400) return Math.floor(s / 3600) + ' jam lalu'; const d = new Date(at); return `${d.getDate()} ${BULAN[d.getMonth()].slice(0, 3)}`; }
 
 const S = {data: null, sel: null, err: ''};
+const standalone = () => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } };
 const CHAR = {name: 'Musubi', color: '#E0463C', pixel: true, art: null};
 
 function shade(hex, f) { const n = parseInt(hex.slice(1), 16); return '#' + [16, 8, 0].map(s => Math.round(((n >> s) & 255) * f).toString(16).padStart(2, '0')).join(''); }
@@ -300,15 +307,28 @@ function render() {
     <div class="daystrip" role="group" aria-label="Pilih hari">${strip}</div>
     <section class="coach"><div class="char s-${md.st}">${charHTML(md.st, tier)}</div><div class="bubble"><b>${esc(CHAR.name)}</b><p>${esc(md.t)}</p></div></section>
     ${board}${food}${night}${weight}${week}
+    ${standalone() ? '' : `<section class="card"><h3>Simpan ke layar utama</h3><p class="note">Supaya gampang dibuka lagi: di iPhone, tekan tombol Bagikan lalu <b>Tambah ke Layar Utama</b>. Di Android, tekan ⋮ lalu <b>Tambahkan ke layar utama</b>. Nanti muncul ikon Musubi.</p></section>`}
     <p class="note" style="text-align:center">Halaman ini diperbarui sendiri kira-kira setiap jam. Tidak perlu dimuat ulang.</p>`;
 }
 
 /* load + decrypt */
 const b64 = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), c => c.charCodeAt(0));
 let cryptoKey = null, lastCt = '';
+// The key arrives once in the link (after #). It is saved in this browser and removed from the address bar,
+// so the short address and a home-screen icon keep working without the long link.
+const KEY_LS = 'musubi-key';
+function getKey() {
+  const fromHash = location.hash.slice(1).replace(/^k=/, '');
+  if (fromHash) {
+    try { localStorage.setItem(KEY_LS, fromHash); history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    return fromHash;
+  }
+  try { return localStorage.getItem(KEY_LS) || ''; } catch (e) { return ''; }
+}
+const theKey = getKey();
 async function load() {
-  const k = location.hash.slice(1).replace(/^k=/, '');
-  if (!k) { S.err = 'Tautan ini tidak lengkap. Minta tautan baru ke anak Ibu.'; render(); return; }
+  const k = theKey;
+  if (!k) { S.err = 'Buka tautan lengkap dari anak Ibu sekali saja. Setelah itu halaman ini akan ingat sendiri.'; render(); return; }
   try {
     if (!cryptoKey) cryptoKey = await crypto.subtle.importKey('raw', b64(k), 'AES-GCM', false, ['decrypt']);
     const res = await fetch('data.json?t=' + Date.now(), {cache: 'no-store'});
