@@ -111,6 +111,10 @@ th,td{padding:8px 4px;text-align:right;border-bottom:1px solid var(--line)}
 th:first-child,td:first-child{text-align:left}
 th{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 td{font-weight:600}
+.gymst{display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;background:color-mix(in srgb,var(--c) 14%,var(--surface));border:1.5px solid color-mix(in srgb,var(--c) 45%,var(--line))}
+.gymst i{width:12px;height:12px;border-radius:50%;background:var(--c);flex:none}
+.gymst b{font:800 20px var(--display);text-transform:uppercase;letter-spacing:.03em}
+.gymst span{margin-left:auto;font:500 12px var(--mono);color:var(--muted)}
 .dotc{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--c);margin-right:6px}
 .btn{min-height:44px;padding:0 16px;border-radius:12px;border:1.5px solid var(--line);background:transparent;font-weight:700}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
@@ -241,12 +245,17 @@ function sonToday(sm) {
   if (sm && sm.tz) { try { const v = new Date().toLocaleDateString('en-CA', {timeZone: sm.tz}); if (/^\d{4}-\d\d-\d\d$/.test(v)) return v; } catch (e) {} }
   return (sm && sm.today) || keyOf(new Date());
 }
+const JENIS = {upper: 'Badan atas', lower: 'Kaki', full: 'Seluruh badan', push: 'Dada & bahu', pull: 'Punggung & lengan', legs: 'Kaki', cardio: 'Kardio', rest: 'Istirahat'};
+// true = finished, 'part' = some sets ticked, 'rest' = rest day, false = not (yet)
+function went(g) { if (!g) return false; if (g.done) return g.type === 'rest' ? 'rest' : true; if (g.sets > 0) return 'part'; return g.type === 'rest' ? 'rest' : false; }
 function mood(d, sm, isToday) {
   const nm = sm.name || 'Anak Ibu';
+  if (d && !(d.kcal > 0) && went(d.gym) === true) return {st: 'flex', t: `${nm} sudah ke gym${isToday ? ' hari ini' : ''} (${JENIS[d.gym.type] || 'latihan'}). Makanannya belum dicatat.`};
   if (!d || !(d.kcal > 0)) return {st: isToday ? 'wave' : 'idle', t: isToday ? `Halo, Bu! ${nm} belum mencatat makanan hari ini.` : `Hari itu ${nm} tidak mencatat makanan.`};
   const over = d.kcal - d.target, night = (d.meals || []).filter(m => m.nt);
   if (over > d.target * 0.05) return {st: 'sad', t: `Waduh, Bu… ${nm} kelebihan ${fmt(over)} kkal${isToday ? ' hari ini' : ''}. Besok kita bangkit lagi.`};
   if (night.length) return {st: 'sleep', t: `${nm} makan malam-malam (${fmt(night.reduce((a, m) => a + m.kcal, 0))} kkal). Kirimi dia semangat, Bu?`};
+  if (went(d.gym) === true) return {st: 'flex', t: `${nm} sudah ke gym${isToday ? ' hari ini' : ''} (${JENIS[d.gym.type] || 'latihan'}) dan makannya pas. Mantap, Bu!`};
   if (d.resisted) return {st: 'flex', t: `${nm} berhasil menahan godaan ngemil malam ${d.resisted}×. Hebat!`};
   if (d.p >= d.pT * 0.95) return {st: 'flex', t: `Protein ${nm} sudah tercapai. Mantap, Bu!`};
   return {st: 'cheer', t: `Aman, Bu! ${nm} sudah makan ${fmt(d.kcal)} kkal, masih sisa ${fmt(Math.max(0, d.target - d.kcal))} kkal.`};
@@ -292,6 +301,13 @@ function render() {
   const night = `<section class="card night"><div class="card-h"><h2>Godaan malam</h2><span class="side">Total ${fmt(sm.resistedTotal || 0)}× ditahan</span></div>
     <div class="stats"><div class="stat"><b>${d ? (d.resisted || 0) : 0}×</b><span>ditahan</span></div><div class="stat"><b>${nightItems.length}</b><span>camilan malam</span></div><div class="stat"><b>${fmt(nightItems.reduce((a, m) => a + m.kcal, 0))}</b><span>kkal malam</span></div></div>
     <p class="note">${sm.guardOn ? `Penjaga malam ${nm} aktif mulai pukul ${esc(sm.guardFrom)}.00. Kalau ingin ngemil, aplikasinya minta dia menunggu 10 menit dulu.` : 'Penjaga malam sedang dimatikan.'}</p></section>`;
+  const g = d && d.gym, gw = went(g), gtag = gw === true ? ['--ok', 'Sudah ke gym ✓'] : gw === 'part' ? ['--carbs', 'Latihan belum selesai'] : gw === 'rest' ? ['--line', 'Hari istirahat'] : ['--line', isToday ? 'Belum ke gym' : 'Tidak ke gym'];
+  const gymN = days.filter(k => went(D[k] && D[k].gym) === true).length;
+  const gym = `<section class="card"><div class="card-h"><h2>Gym</h2><span class="side">${gymN}× dalam 7 hari</span></div>
+    <div class="gymst" style="--c:var(${gtag[0]})"><i></i><b>${gtag[1]}</b>${g && g.type !== 'rest' ? `<span>${esc(JENIS[g.type] || '')}</span>` : ''}</div>
+    ${g && g.type !== 'rest' && g.sets > 0 ? `<p class="note">${g.sets} dari ${g.total} set selesai.</p>
+    <table><thead><tr><th>Latihan</th><th>Set</th><th>Beban</th></tr></thead><tbody>${(g.ex || []).filter(e => e.d > 0).map(e => `<tr><td>${esc(e.n)}</td><td>${e.d}/${e.s}</td><td>${e.kg != null ? g1(e.kg) + ' kg' : '–'}</td></tr>`).join('')}</tbody></table>` : `<p class="note">${gw === 'rest' ? 'Jadwalnya istirahat: jalan santai dan peregangan.' : isToday ? `Kalau ${nm} sudah latihan, akan muncul di sini.` : 'Tidak ada latihan yang dicatat hari itu.'}</p>`}
+  </section>`;
   const lost = Math.max(0, sm.startKg - sm.cur), total = Math.max(0.1, sm.startKg - sm.goalKg), prog = clamp(lost / total, 0, 1);
   const ws = (Array.isArray(sm.weighs) ? sm.weighs : []).slice(-5).reverse();
   const weight = `<section class="card"><div class="card-h"><h2>Berat badan</h2><span class="side">Target ${g1(sm.goalKg)} kg</span></div>
@@ -300,16 +316,16 @@ function render() {
     <p class="note">Mulai dari ${g1(sm.startKg)} kg · sisa ${g1(Math.max(0, sm.cur - sm.goalKg))} kg lagi.</p>
     ${ws.length ? `<table><thead><tr><th>Timbang</th><th>Berat</th></tr></thead><tbody>${ws.map(w => `<tr><td>${esc(tgl(w.k))}</td><td>${g1(w.v)} kg</td></tr>`).join('')}</tbody></table>` : ''}
     <p class="note">Berat harian bisa naik-turun sekitar 1 kg karena air dan garam. Lihat arahnya dalam beberapa minggu.</p></section>`;
-  const week = `<section class="card"><div class="card-h"><h2>7 hari terakhir</h2></div><div style="overflow-x:auto"><table><thead><tr><th>Hari</th><th>Kalori</th><th>Status</th></tr></thead><tbody>
+  const week = `<section class="card"><div class="card-h"><h2>7 hari terakhir</h2></div><div style="overflow-x:auto"><table><thead><tr><th>Hari</th><th>Kalori</th><th>Gym</th><th>Status</th></tr></thead><tbody>
     ${days.map(k => { const x = D[k], has = x && x.kcal > 0, ov = has ? x.kcal - x.target : 0;
       const st = !has ? ['--line', 'Tidak dicatat'] : ov > x.target * 0.05 ? ['--protein', `Lebih ${fmt(ov)}`] : ['--ok', 'Pas'];
-      return `<tr><td>${k === today ? 'Hari ini' : esc(pendek(k))}</td><td>${has ? `${fmt(x.kcal)} / ${fmt(x.target)}` : '–'}</td><td><span class="dotc" style="--c:var(${st[0]})"></span>${st[1]}</td></tr>`; }).join('')}
+      return `<tr><td>${k === today ? 'Hari ini' : esc(pendek(k))}</td><td>${has ? `${fmt(x.kcal)} / ${fmt(x.target)}` : '–'}</td><td>${{true: '✓', part: '½', rest: 'Istirahat'}[String(went(x && x.gym))] || '–'}</td><td><span class="dotc" style="--c:var(${st[0]})"></span>${st[1]}</td></tr>`; }).join('')}
     </tbody></table></div></section>`;
   app.innerHTML = head(esc(tgl(sel))) +
     `<span class="live ${stale ? 'stale' : ''}"><i></i>Catatan terakhir ${esc(lalu(last))}</span>
     <div class="daystrip" role="group" aria-label="Pilih hari">${strip}</div>
     <section class="coach"><div class="char s-${md.st}">${charHTML(md.st, tier)}</div><div class="bubble"><b>${esc(CHAR.name)}</b><p>${esc(md.t)}</p></div></section>
-    ${board}${food}${night}${weight}${week}
+    ${board}${gym}${food}${night}${weight}${week}
     ${standalone() ? '' : `<section class="card"><h3>Simpan ke layar utama</h3><p class="note">Supaya gampang dibuka lagi: di iPhone, tekan tombol Bagikan lalu <b>Tambah ke Layar Utama</b>. Di Android, tekan ⋮ lalu <b>Tambahkan ke layar utama</b>. Nanti muncul ikon Musubi.</p></section>`}
     <p class="note" style="text-align:center">Halaman ini diperbarui sendiri kira-kira setiap jam. Tidak perlu dimuat ulang.</p>`;
 }

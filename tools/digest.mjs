@@ -39,6 +39,13 @@ if (!d || !(d.kcal > 0)) {
   if (night.length) lines.push(`- Camilan malam: ${night.map(x => `${x.n} (${fmt(x.kcal)} kkal)`).join(', ')}`);
   if (d.resisted) lines.push(`- Godaan ngemil malam berhasil ditahan ${d.resisted}×`);
 }
+// Gym: finished, partly done, rest day, or not logged (yet)
+const JENIS = {upper: 'badan atas', lower: 'kaki', full: 'seluruh badan', push: 'dada & bahu', pull: 'punggung & lengan', legs: 'kaki', cardio: 'kardio', rest: 'istirahat'};
+const g = d && d.gym;
+if (g && g.type === 'rest') lines.push(`- Gym: hari istirahat`);
+else if (g && g.done) lines.push(`- Gym: sudah latihan ✓ (${JENIS[g.type] || 'latihan'}, ${g.sets} dari ${g.total} set)`);
+else if (g && g.sets > 0) lines.push(`- Gym: sedang/sudah latihan, ${g.sets} dari ${g.total} set dicatat`);
+else lines.push(`- Gym: belum dicatat`);
 if (d && d.weight != null) lines.push(`- Berat pagi ini: ${g1(d.weight)} kg (turun ${g1(Math.max(0, sum.startKg - d.weight))} kg sejak mulai, target ${g1(sum.goalKg)} kg)`);
 
 const body = `Halo Bu, Pak!
